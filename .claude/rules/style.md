@@ -1,4 +1,0 @@
-- Do not comment out full code - comment only specific variables, data structure and methods if it is not obvious what they actually are.
-- Write more human-like code. No "clean" dogmas, some variables names can be named weirdly. Although do not create magic numbers or methods. 
-- Follow the patterns in existing codebase. 
-- Structure programm.

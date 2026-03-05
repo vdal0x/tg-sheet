@@ -1,6 +1,8 @@
-# tg-xlsx 
+# tg-sheet 
 
-simple macOS icon tray that parses chats into `.xlsx` spreadsheets. 
+simple macOS icon tray that exports chat history into customizable spreadsheets.
 
 todo:
-- parse job chats into stats. 
+- parse job chats into stats
+- add custom parsing tools 
+- etc. 
