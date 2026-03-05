@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"go.uber.org/zap"
+
 	"github.com/vdal0x/tg-sheet/pkg/config"
 	"github.com/vdal0x/tg-sheet/pkg/parser"
 	"github.com/vdal0x/tg-sheet/pkg/sheet"
@@ -17,10 +19,11 @@ import (
 
 type TrayApp struct {
 	cfg *config.Config
+	log *zap.Logger
 }
 
-func NewTrayApp(cfg *config.Config) *TrayApp {
-	return &TrayApp{cfg: cfg}
+func NewTrayApp(cfg *config.Config, log *zap.Logger) *TrayApp {
+	return &TrayApp{cfg: cfg, log: log}
 }
 
 // Start blocks until the user quits. Must be called from the main goroutine.
@@ -71,18 +74,22 @@ func (a *TrayApp) newClient() *tg.Client {
 }
 
 func (a *TrayApp) doAuth() {
+	a.log.Info("auth started")
 	client := a.newClient()
 	err := client.Run(context.Background(), func(_ context.Context) error {
 		return nil // auth is fully handled by IfNecessary before f is called
 	})
 	if err != nil {
+		a.log.Error("auth failed", zap.Error(err))
 		Notify("Auth failed", err.Error())
 		return
 	}
+	a.log.Info("auth ok")
 	Notify("TGSheet", "Authenticated successfully")
 }
 
 func (a *TrayApp) doSelectChats() {
+	a.log.Info("fetching dialogs")
 	client := a.newClient()
 
 	var chats []tg.Chat
@@ -92,9 +99,11 @@ func (a *TrayApp) doSelectChats() {
 		return err
 	})
 	if err != nil {
+		a.log.Error("fetch dialogs failed", zap.Error(err))
 		Notify("Error", err.Error())
 		return
 	}
+	a.log.Info("dialogs fetched", zap.Int("count", len(chats)))
 
 	titles := make([]string, len(chats))
 	for i, c := range chats {
@@ -148,6 +157,7 @@ func (a *TrayApp) doGenerateReport() {
 		return
 	}
 
+	a.log.Info("fetching messages", zap.String("month", monthStr))
 	client := a.newClient()
 	var allMsgs []tg.RawMessage
 
@@ -164,25 +174,30 @@ func (a *TrayApp) doGenerateReport() {
 			if err != nil {
 				return fmt.Errorf("fetch %q: %w", c.Title, err)
 			}
+			a.log.Info("chat fetched", zap.String("chat", c.Title), zap.Int("messages", len(msgs)))
 			allMsgs = append(allMsgs, msgs...)
 		}
 		return nil
 	})
 	if err != nil {
+		a.log.Error("fetch failed", zap.Error(err))
 		Notify("Error", err.Error())
 		return
 	}
 
 	days := parser.Parse(allMsgs)
+	a.log.Info("parsed", zap.Int("days", len(days)))
 
 	home, _ := os.UserHomeDir()
 	outFile := filepath.Join(home, "Desktop", fmt.Sprintf("report-%s.csv", monthStr))
 
 	sh := sheet.NewSheet(days, outFile)
 	if err := sh.Save(outFile); err != nil {
+		a.log.Error("save failed", zap.String("file", outFile), zap.Error(err))
 		Notify("Error", err.Error())
 		return
 	}
+	a.log.Info("report saved", zap.String("file", outFile))
 	Notify("TGSheet", fmt.Sprintf("Saved report-%s.csv to Desktop (%d days)", monthStr, len(days)))
 }
 

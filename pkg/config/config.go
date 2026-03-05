@@ -3,26 +3,38 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
-	"gopkg.in/yaml.v3"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	Tg struct {
-		ApiId   int    `yaml:"api_id"`
-		ApiHash string `yaml:"api_hash"`
-		Phone   string `yaml:"phone"`
-	} `yaml:"telegram"`
+		ApiId   int
+		ApiHash string
+		Phone   string
+	}
 }
 
-func LoadConfig(fileName string) (*Config, error) {
-	f, err := os.ReadFile(fileName)
+func LoadConfig(envFile string) (*Config, error) {
+	if err := godotenv.Load(envFile); err != nil {
+		return nil, fmt.Errorf("loading %s: %w", envFile, err)
+	}
+
+	apiID, err := strconv.Atoi(os.Getenv("TG_API_ID"))
 	if err != nil {
-		return nil, fmt.Errorf("reading config: %w", err)
+		return nil, fmt.Errorf("TG_API_ID must be an integer: %w", err)
 	}
-	var cfg Config
-	if err := yaml.Unmarshal(f, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+
+	apiHash := os.Getenv("TG_API_HASH")
+	phone := os.Getenv("TG_PHONE")
+	if apiHash == "" || phone == "" {
+		return nil, fmt.Errorf("TG_API_HASH and TG_PHONE are required")
 	}
-	return &cfg, nil
+
+	cfg := &Config{}
+	cfg.Tg.ApiId = apiID
+	cfg.Tg.ApiHash = apiHash
+	cfg.Tg.Phone = phone
+	return cfg, nil
 }
