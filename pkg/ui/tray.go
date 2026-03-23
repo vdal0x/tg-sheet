@@ -60,26 +60,17 @@ func (a *TrayApp) onReady() {
 
 // newClient builds a TG client wired to osascript dialogs for auth input.
 func (a *TrayApp) newClient() *tg.Client {
-	return tg.NewClient(a.cfg.Tg.ApiId, a.cfg.Tg.ApiHash, tg.AuthCallbacks{
-		Phone: func() string { return a.cfg.Tg.Phone },
-		Code: func() string {
-			code, _ := InputDialog("Telegram code:")
-			return code
-		},
-		Password: func() string {
-			pass, _ := InputDialog("2FA password:")
-			return pass
-		},
-	})
+	return tg.NewClient(a.cfg.Tg.AppId, a.cfg.Tg.AppHash, tg.AuthCallbacks{
+		Phone:    func() (string, error) { return a.cfg.Tg.Phone, nil },
+		Code:     func() (string, error) { return InputDialog("Telegram code:") },
+		Password: func() (string, error) { return InputDialog("2FA password:") },
+	}, a.log)
 }
 
 func (a *TrayApp) doAuth() {
-	a.log.Info("auth started")
+	a.log.Info("auth started", zap.String("phone", a.cfg.Tg.Phone), zap.Int("app_id", a.cfg.Tg.AppId))
 	client := a.newClient()
-	err := client.Run(context.Background(), func(_ context.Context) error {
-		return nil // auth is fully handled by IfNecessary before f is called
-	})
-	if err != nil {
+	if err := client.Authenticate(context.Background()); err != nil {
 		a.log.Error("auth failed", zap.Error(err))
 		Notify("Auth failed", err.Error())
 		return

@@ -2,10 +2,12 @@ package tg
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	tdtg "github.com/gotd/td/tg"
+	"go.uber.org/zap"
 )
 
 type Chat struct {
@@ -22,7 +24,22 @@ type RawMessage struct {
 }
 
 // FetchDialogs returns up to 100 dialogs the user is a member of.
-func FetchDialogs(ctx context.Context, tgCl *tdtg.Client) ([]Chat, error) {
+func FetchDialogs(ctx context.Context, tgCl *tdtg.Client, log *zap.Logger) ([]Chat, error) {
+	log.Info("FetchDialogs: calling UsersGetUsers")
+	self, err := tgCl.UsersGetUsers(ctx, []tdtg.InputUserClass{&tdtg.InputUserSelf{}})
+	if err != nil {
+		log.Error("UsersGetUsers failed", zap.Error(err))
+		return nil, err
+	}
+	log.Info("UsersGetUsers ok", zap.Int("count", len(self)))
+	if len(self) > 0 {
+		if u, ok := self[0].(*tdtg.User); ok {
+			log.Info("session account", zap.Int64("uid", u.ID), zap.String("name", u.FirstName), zap.String("phone", u.Phone))
+		} else {
+			log.Warn("self[0] is not *User — session may be unauthenticated", zap.String("type", fmt.Sprintf("%T", self[0])))
+		}
+	}
+
 	res, err := tgCl.MessagesGetDialogs(ctx, &tdtg.MessagesGetDialogsRequest{
 		OffsetPeer: &tdtg.InputPeerEmpty{},
 		Limit:      100,
@@ -42,7 +59,15 @@ func FetchDialogs(ctx context.Context, tgCl *tdtg.Client) ([]Chat, error) {
 		chats, users, rawDialogs = v.Chats, v.Users, v.Dialogs
 	case *tdtg.MessagesDialogsSlice:
 		chats, users, rawDialogs = v.Chats, v.Users, v.Dialogs
+	default:
+		return nil, fmt.Errorf("unexpected dialogs response type %T", v)
 	}
+
+	log.Info("raw dialogs response",
+		zap.Int("chats", len(chats)),
+		zap.Int("users", len(users)),
+		zap.Int("dialogs", len(rawDialogs)),
+	)
 
 	chatByID := make(map[int64]tdtg.ChatClass, len(chats))
 	for _, c := range chats {
@@ -57,10 +82,13 @@ func FetchDialogs(ctx context.Context, tgCl *tdtg.Client) ([]Chat, error) {
 	for _, d := range rawDialogs {
 		dlg, ok := d.(*tdtg.Dialog)
 		if !ok {
+			log.Info("skipping non-Dialog entry", zap.String("type", fmt.Sprintf("%T", d)))
 			continue
 		}
 		if dialog, ok := buildDialog(dlg.Peer, chatByID, userByID); ok {
 			dialogs = append(dialogs, dialog)
+		} else {
+			log.Info("buildDialog failed", zap.String("peer_type", fmt.Sprintf("%T", dlg.Peer)))
 		}
 	}
 	return dialogs, nil

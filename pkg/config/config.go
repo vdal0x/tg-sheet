@@ -10,8 +10,8 @@ import (
 
 type Config struct {
 	Tg struct {
-		ApiId   int
-		ApiHash string
+		AppId   int
+		AppHash string
 		Phone   string
 	}
 }
@@ -21,20 +21,20 @@ func LoadConfig(envFile string) (*Config, error) {
 		return nil, fmt.Errorf("loading %s: %w", envFile, err)
 	}
 
-	apiID, err := strconv.Atoi(os.Getenv("TG_API_ID"))
+	appID, err := strconv.Atoi(os.Getenv("TG_APP_ID"))
 	if err != nil {
-		return nil, fmt.Errorf("TG_API_ID must be an integer: %w", err)
+		return nil, fmt.Errorf("invalid tg app value: %w", err)
 	}
 
-	apiHash := os.Getenv("TG_API_HASH")
+	appHash := os.Getenv("TG_APP_HASH")
 	phone := os.Getenv("TG_PHONE")
-	if apiHash == "" || phone == "" {
-		return nil, fmt.Errorf("TG_API_HASH and TG_PHONE are required")
+	if appHash == "" || phone == "" {
+		return nil, fmt.Errorf("TG_APP_HASH and TG_PHONE are required")
 	}
 
 	cfg := &Config{}
-	cfg.Tg.ApiId = apiID
-	cfg.Tg.ApiHash = apiHash
+	cfg.Tg.AppId = appID
+	cfg.Tg.AppHash = appHash
 	cfg.Tg.Phone = phone
 	return cfg, nil
 }
